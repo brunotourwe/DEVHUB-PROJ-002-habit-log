@@ -146,26 +146,57 @@ def upsert_daily_log(
                     now,
                 ),
             )
+
+
+def get_weekly_weight(year: int, week: int) -> dict[str, object] | None:
+    with _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT
+                year,
+                week,
+                weight_kg,
+                created_at
+            FROM weekly_weight
+            WHERE year = ? AND week = ?
+            """,
+            (year, week),
+        ).fetchone()
+
+    if row is None:
+        return None
+
+    return {
+        "year": row["year"],
+        "week": row["week"],
+        "weight_kg": row["weight_kg"],
+        "created_at": row["created_at"],
+    }
+
+
+def upsert_weekly_weight(*, year: int, week: int, weight_kg: float) -> None:
+    now = dt.datetime.utcnow().replace(microsecond=0).isoformat()
+
+    with _connect() as conn:
+        existing = conn.execute(
+            "SELECT created_at FROM weekly_weight WHERE year = ? AND week = ?",
+            (year, week),
+        ).fetchone()
+
+        if existing is None:
+            conn.execute(
+                """
+                INSERT INTO weekly_weight (year, week, weight_kg, created_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (year, week, weight_kg, now),
+            )
         else:
             conn.execute(
                 """
-                UPDATE daily_log
-                SET
-                    walked = ?,
-                    no_alcohol_after_21 = ?,
-                    food_respected = ?,
-                    note = ?,
-                    special_occasion = ?,
-                    updated_at = ?
-                WHERE date = ?
+                UPDATE weekly_weight
+                SET weight_kg = ?
+                WHERE year = ? AND week = ?
                 """,
-                (
-                    int(walked),
-                    int(no_alcohol_after_21),
-                    int(food_respected),
-                    note,
-                    int(special_occasion),
-                    now,
-                    date_value,
-                ),
+                (weight_kg, year, week),
             )

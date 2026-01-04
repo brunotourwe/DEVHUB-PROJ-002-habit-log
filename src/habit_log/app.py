@@ -8,7 +8,14 @@ from pathlib import Path
 from flask import Flask, redirect, render_template, request, url_for
 
 from .auth import login_required, register_auth
-from .db import get_daily_log, get_db_path, init_db, upsert_daily_log
+from .db import (
+    get_daily_log,
+    get_db_path,
+    get_weekly_weight,
+    init_db,
+    upsert_daily_log,
+    upsert_weekly_weight,
+)
 
 
 def _get_bind() -> tuple[str, int]:
@@ -81,6 +88,41 @@ def create_app() -> Flask:
             date_value=date_value,
             entry=entry,
             error=error,
+        )
+
+    @app.route("/weight", methods=["GET", "POST"])
+    @login_required
+    def weekly_weight():
+        error = None
+        current = dt_date.today().isocalendar()
+        current_year = current.year
+        current_week = current.week
+
+        if request.method == "POST":
+            weight_value = request.form.get("weight_kg", "").strip()
+            if not weight_value:
+                error = "Weight is required."
+            else:
+                try:
+                    weight_kg = float(weight_value)
+                except ValueError:
+                    error = "Weight must be a number."
+                else:
+                    upsert_weekly_weight(
+                        year=current_year,
+                        week=current_week,
+                        weight_kg=weight_kg,
+                    )
+                    return redirect(url_for("weekly_weight"))
+
+        entry = get_weekly_weight(current_year, current_week)
+
+        return render_template(
+            "weekly_weight.html",
+            entry=entry,
+            error=error,
+            year=current_year,
+            week=current_week,
         )
 
     return app

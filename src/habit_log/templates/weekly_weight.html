@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Weekly Weight</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Arial, sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 24px 16px;
+        background: #f6f6f4;
+        color: #1a1a1a;
+      }
+      main {
+        max-width: 520px;
+        margin: 0 auto;
+        background: #ffffff;
+        border: 1px solid #e2e2dd;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+      }
+      h1 {
+        margin: 0 0 12px 0;
+        font-size: 22px;
+      }
+      .row {
+        margin-bottom: 14px;
+      }
+      label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+      input[type="text"] {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #cfcfca;
+        border-radius: 8px;
+        font-size: 16px;
+      }
+      .actions {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-top: 18px;
+      }
+      button {
+        padding: 10px 14px;
+        border: none;
+        border-radius: 8px;
+        background: #1d4ed8;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .error {
+        color: #b00020;
+        margin-bottom: 10px;
+      }
+      .meta {
+        font-size: 12px;
+        color: #5a5a55;
+        margin-top: 12px;
+      }
+      a {
+        color: #1d4ed8;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Weekly Weight</h1>
+      <p>ISO week {{ week }}, {{ year }}</p>
+      {% if error %}
+        <p class="error">{{ error }}</p>
+      {% endif %}
+      <form method="post">
+        <div class="row">
+          <label for="weight_kg">Weight (kg)</label>
+          <input
+            id="weight_kg"
+            name="weight_kg"
+            type="text"
+            inputmode="decimal"
+            value="{% if entry %}{{ entry.weight_kg }}{% endif %}"
+            required
+          >
+        </div>
+        <div class="actions">
+          <button type="submit">Save</button>
+          <a href="{{ url_for('daily_log') }}">Daily log</a>
+          <a href="{{ url_for('logout') }}">Log out</a>
+        </div>
+      </form>
+      {% if entry %}
+        <p class="meta">Created: {{ entry.created_at }}</p>
+      {% endif %}
+    </main>
+  </body>
+</html>
