@@ -48,13 +48,42 @@ def create_app() -> Flask:
     @login_required
     def daily_log():
         error = None
+        today_value = dt_date.today().isoformat()
+
         if request.method == "POST":
             date_value = request.form.get("date", "")
-            try:
-                dt_date.fromisoformat(date_value)
-            except ValueError:
-                error = "Invalid date."
-            else:
+        else:
+            date_value = request.args.get("date") or today_value
+
+        try:
+            dt_date.fromisoformat(date_value)
+        except ValueError:
+            error = "Invalid date."
+            date_value = today_value
+
+        current = dt_date.today().isocalendar()
+        week_year = current.year
+        week_number = current.week
+        weekly_entry = get_weekly_weight(week_year, week_number)
+
+        if request.method == "POST" and error is None:
+            edit_weight = request.form.get("edit_weight") == "1"
+            allow_weight_edit = weekly_entry is None or edit_weight
+            weight_value = request.form.get("weight_kg", "").strip()
+
+            if weight_value and allow_weight_edit:
+                try:
+                    weight_kg = float(weight_value)
+                except ValueError:
+                    error = "Weight must be a number."
+                else:
+                    upsert_weekly_weight(
+                        year=week_year,
+                        week=week_number,
+                        weight_kg=weight_kg,
+                    )
+
+            if error is None:
                 walked = request.form.get("walked") == "on"
                 no_alcohol_after_21 = request.form.get("no_alcohol_after_21") == "on"
                 food_respected = request.form.get("food_respected") == "on"
@@ -71,24 +100,25 @@ def create_app() -> Flask:
                 )
                 return redirect(url_for("daily_log", date=date_value))
 
-        date_value = request.args.get("date")
-        if not date_value:
-            date_value = dt_date.today().isoformat()
-        else:
-            try:
-                dt_date.fromisoformat(date_value)
-            except ValueError:
-                error = "Invalid date."
-                date_value = dt_date.today().isoformat()
-
         entry = get_daily_log(date_value)
+        if request.method == "POST":
+            edit_weight = request.form.get("edit_weight") == "1"
+        else:
+            edit_weight = request.args.get("edit_weight") == "1"
+        weekly_editable = weekly_entry is None or edit_weight
 
         return render_template(
             "daily_log.html",
             date_value=date_value,
             entry=entry,
             error=error,
+            weekly_entry=weekly_entry,
+            weekly_editable=weekly_editable,
+            weekly_label=f"{week_year}-W{week_number:02d}",
         )
+
+# Legacy / fallback route.
+# Primary UX for weekly weight is integrated into the daily log ("/").
 
     @app.route("/weight", methods=["GET", "POST"])
     @login_required

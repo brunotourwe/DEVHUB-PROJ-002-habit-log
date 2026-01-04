@@ -24,6 +24,8 @@ The application defines a concept of **behavioral today**.
 
 This rule reflects common human behavior where a “day” is not mentally closed at midnight.
 
+Weekly weight is entered from the daily log page; separate weight views are not part of the primary UX.
+
 ---
 
 ## 2. Late-Night Logging
