@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Weekly Weight</title>
+    <title>{% block title %}Habit Log{% endblock %}</title>
     <style>
       :root {
         color-scheme: light;
@@ -24,9 +24,21 @@
         padding: 20px;
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
       }
+      .page-header {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
       h1 {
-        margin: 0 0 12px 0;
+        margin: 0;
         font-size: 22px;
+      }
+      .nav {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
       }
       .row {
         margin-bottom: 14px;
@@ -36,18 +48,35 @@
         font-weight: 600;
         margin-bottom: 6px;
       }
-      input[type="text"] {
+      input[type="date"],
+      input[type="text"],
+      textarea {
         width: 100%;
         padding: 10px 12px;
         border: 1px solid #cfcfca;
         border-radius: 8px;
         font-size: 16px;
       }
+      textarea {
+        min-height: 96px;
+        resize: vertical;
+      }
+      .check {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      .check label {
+        margin: 0;
+        font-weight: 500;
+      }
       .actions {
         display: flex;
         gap: 12px;
         align-items: center;
         margin-top: 18px;
+        flex-wrap: wrap;
       }
       button {
         padding: 10px 14px;
@@ -74,32 +103,14 @@
   </head>
   <body>
     <main>
-      <h1>Weekly Weight</h1>
-      <p>ISO week {{ week }}, {{ year }}</p>
-      {% if error %}
-        <p class="error">{{ error }}</p>
-      {% endif %}
-      <form method="post">
-        <div class="row">
-          <label for="weight_kg">Weight (kg)</label>
-          <input
-            id="weight_kg"
-            name="weight_kg"
-            type="text"
-            inputmode="decimal"
-            value="{% if entry %}{{ entry.weight_kg }}{% endif %}"
-            required
-          >
-        </div>
-        <div class="actions">
-          <button type="submit">Save</button>
-          <a href="{{ url_for('daily_log') }}">Daily log</a>
+      <header class="page-header">
+        <h1>{% block heading %}Habit Log{% endblock %}</h1>
+        <nav class="nav">
+          {% block nav %}{% endblock %}
           <a href="{{ url_for('logout') }}">Log out</a>
-        </div>
-      </form>
-      {% if entry %}
-        <p class="meta">Created: {{ entry.created_at }}</p>
-      {% endif %}
+        </nav>
+      </header>
+      {% block body %}{% endblock %}
     </main>
   </body>
 </html>
