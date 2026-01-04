@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PORT="${HABIT_LOG_PORT:-10021}"
+DATA_DIR="${HABIT_LOG_DATA_DIR:-${PWD}/.data}"
+PASSWORD_FILE="${DATA_DIR}/password.hash"
+
+PYTHON_BIN=""
+if [[ -n "${VIRTUAL_ENV:-}" && -x "${VIRTUAL_ENV}/bin/python" ]]; then
+  PYTHON_BIN="${VIRTUAL_ENV}/bin/python"
+elif command -v python >/dev/null 2>&1; then
+  PYTHON_BIN="$(command -v python)"
+elif command -v python3 >/dev/null 2>&1; then
+  PYTHON_BIN="$(command -v python3)"
+else
+  echo "python is required to start Habit Log." >&2
+  exit 1
+fi
+
+export HABIT_LOG_DB_PATH="${HABIT_LOG_DB_PATH:-${DATA_DIR}/habit-log.db}"
+export HABIT_LOG_SECRET_KEY="${HABIT_LOG_SECRET_KEY:-dev-secret-key-change-me}"
+export PYTHONPATH="${PYTHONPATH:-${PWD}/src}"
+
+if "${PYTHON_BIN}" - "$PORT" <<'PY'; then
+import socket
+import sys
+
+port = int(sys.argv[1])
+with socket.socket() as sock:
+    sock.settimeout(0.2)
+    try:
+        sock.connect(("127.0.0.1", port))
+    except OSError:
+        sys.exit(1)
+    else:
+        sys.exit(0)
+PY
+  exit 0
+fi
+
+mkdir -p "${DATA_DIR}"
+
+if [[ -z "${HABIT_LOG_PASSWORD_HASH:-}" ]]; then
+  if [[ -f "${PASSWORD_FILE}" ]]; then
+    export HABIT_LOG_PASSWORD_HASH="$(cat "${PASSWORD_FILE}")"
+  else
+    HABIT_LOG_PASSWORD_HASH="$(
+      "${PYTHON_BIN}" - <<'PY'
+from werkzeug.security import generate_password_hash
+
+print(generate_password_hash("test123"))
+PY
+    )"
+    printf '%s' "${HABIT_LOG_PASSWORD_HASH}" > "${PASSWORD_FILE}"
+    export HABIT_LOG_PASSWORD_HASH
+  fi
+fi
+
+nohup "${PYTHON_BIN}" -m habit_log >/tmp/habit_log.log 2>&1 &

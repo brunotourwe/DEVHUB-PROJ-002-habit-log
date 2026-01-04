@@ -12,7 +12,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     git \
+    iproute2 \
     openssh-client \
+    python-is-python3 \
+    python3 \
+    python3-pip \
+    python3-venv \
+    ripgrep \
     less \
     && rm -rf /var/lib/apt/lists/*
 
@@ -40,7 +46,29 @@ RUN set -eux; \
             groupadd --gid ${USER_GID} ${USERNAME}; \
         fi; \
         useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME}; \
+    fi; \
+    if getent group ${USER_GID} >/dev/null; then \
+        existing_group="$(getent group ${USER_GID} | cut -d: -f1)"; \
+        if [ "$existing_group" != "${USERNAME}" ]; then \
+            groupmod -n ${USERNAME} "$existing_group"; \
+        fi; \
+    else \
+        groupadd --gid ${USER_GID} ${USERNAME}; \
     fi
+
+COPY requirements.txt /tmp/requirements.txt
+
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="${VIRTUAL_ENV}/bin:$PATH"
+
+RUN python3 -m venv ${VIRTUAL_ENV} \
+    && ${VIRTUAL_ENV}/bin/pip install --no-cache-dir --upgrade pip \
+    && ${VIRTUAL_ENV}/bin/pip install --no-cache-dir -r /tmp/requirements.txt \
+    && rm /tmp/requirements.txt \
+    && chown -R ${USERNAME}:${USERNAME} ${VIRTUAL_ENV}
+
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="${VIRTUAL_ENV}/bin:$PATH"
 
 USER ${USERNAME}
 WORKDIR /workspace

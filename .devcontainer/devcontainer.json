@@ -1,24 +1,31 @@
 {
-  "name": "Dev Hub Base Devcontainer",
+  "name": "DEVHUB-PROJ-002",
   "build": {
-    "dockerfile": "Dockerfile"
+    "dockerfile": "Dockerfile",
+    "context": ".."
   },
-  "remoteUser": "dev",
-  "workspaceFolder": "/workspace",
 
-  "features": {},
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+
+  "forwardPorts": [10021],
+  "runArgs": [
+    "--env-file",
+    ".env"
+  ],
+  "postStartCommand": "./scripts/dev",
+  "containerEnv": {
+    "HABIT_LOG_HOST": "0.0.0.0",
+    "HABIT_LOG_PORT": "10021",
+    "HABIT_LOG_DB_PATH": "${containerWorkspaceFolder}/.data/habit-log.db",
+    "HABIT_LOG_SECRET_KEY": "dev-secret-key-change-me",
+    "PYTHONPATH": "${containerWorkspaceFolder}/src"
+  },
 
   "customizations": {
     "vscode": {
-      "settings": {
-        "terminal.integrated.defaultProfile.linux": "bash"
-      }
+      "extensions": [
+        "ms-python.python"
+      ]
     }
-  },
-
-  "mounts": [
-    "source=${localWorkspaceFolder},target=/workspace,type=bind"
-  ],
-
-  "postCreateCommand": "pnpm --version"
+  }
 }
