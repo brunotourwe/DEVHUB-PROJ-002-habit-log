@@ -7,6 +7,12 @@ Any changes require an explicit ADR.
 
 See /docs for authoritative documentation.
 
+Data persistence
+
+The application stores its database in a Docker volume / mapped directory.
+Rebuilding or upgrading the container does not delete existing data.
+To reset data, explicitly remove the volume or mapped folder.
+
 ## Running in Unraid / Docker
 
 Image: `ghcr.io/brunotourwe/devhub-proj-002-habit-log:latest`
