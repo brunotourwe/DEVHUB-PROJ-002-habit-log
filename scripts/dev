@@ -2,7 +2,8 @@
 set -euo pipefail
 
 PORT="${HABIT_LOG_PORT:-10021}"
-DATA_DIR="${HABIT_LOG_DATA_DIR:-${PWD}/.data}"
+APP_ENV="${APP_ENV:-local}"
+DATA_DIR="${DATA_DIR:-${HABIT_LOG_DATA_DIR:-${PWD}/.data}}"
 PASSWORD_FILE="${DATA_DIR}/password.hash"
 
 PYTHON_BIN=""
@@ -17,6 +18,8 @@ else
   exit 1
 fi
 
+export APP_ENV
+export DATA_DIR
 export HABIT_LOG_DB_PATH="${HABIT_LOG_DB_PATH:-${DATA_DIR}/habit-log.db}"
 export HABIT_LOG_SECRET_KEY="${HABIT_LOG_SECRET_KEY:-dev-secret-key-change-me}"
 export PYTHONPATH="${PYTHONPATH:-${PWD}/src}"

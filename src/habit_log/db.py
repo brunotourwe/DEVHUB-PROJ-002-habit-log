@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import datetime as dt
-import os
 import sqlite3
 from pathlib import Path
+
+from .config import get_db_path as _get_db_path
 
 SCHEMA_VERSION = 1
 
 
 def get_db_path() -> str:
-    return os.getenv("HABIT_LOG_DB_PATH", "/data/habit-log.db")
+    return _get_db_path()
 
 
 def _connect() -> sqlite3.Connection:

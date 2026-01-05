@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import sqlite3
 from datetime import date as dt_date
 from pathlib import Path
@@ -8,6 +7,7 @@ from pathlib import Path
 from flask import Flask, redirect, render_template, request, url_for
 
 from .auth import login_required, register_auth
+from .config import get_bind_host, get_bind_port
 from .db import (
     get_daily_log,
     get_db_path,
@@ -19,9 +19,7 @@ from .db import (
 
 
 def _get_bind() -> tuple[str, int]:
-    host = os.getenv("HABIT_LOG_HOST", "0.0.0.0")
-    port = int(os.getenv("HABIT_LOG_PORT", "10021"))
-    return host, port
+    return get_bind_host(), get_bind_port()
 
 
 def create_app() -> Flask:
