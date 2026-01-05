@@ -9,11 +9,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-ARG APP_UID=99
-ARG APP_GID=100
-
-RUN groupadd --system --gid "${APP_GID}" app \
-    && useradd --system --uid "${APP_UID}" --gid app \
+RUN groupadd --system app \
+    && useradd --system --gid app \
     --home /home/app --create-home --shell /usr/sbin/nologin app
 
 COPY requirements.txt /app/
