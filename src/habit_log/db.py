@@ -147,6 +147,35 @@ def get_daily_log(date_value: str) -> dict[str, object] | None:
     }
 
 
+def count_orange_days(
+    *,
+    start_date: str,
+    end_date: str,
+    exclude_date: str | None = None,
+) -> int:
+    query = """
+        SELECT COUNT(*)
+        FROM daily_log
+        WHERE date >= ? AND date <= ?
+          AND special_occasion = 1
+          AND (
+            walked = 0
+            OR no_alcohol_after_21 = 0
+            OR food_respected = 0
+          )
+    """
+    params: list[object] = [start_date, end_date]
+    if exclude_date:
+        query += " AND date != ?"
+        params.append(exclude_date)
+
+    with _connect() as conn:
+        row = conn.execute(query, params).fetchone()
+    if row is None:
+        return 0
+    return int(row[0])
+
+
 def upsert_daily_log(
     *,
     date_value: str,

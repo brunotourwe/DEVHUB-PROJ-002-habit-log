@@ -13,6 +13,8 @@
     <span class="status-label">
       {% if day_status == "green" %}
         Green — Day respected
+      {% elif day_status == "orange" %}
+        Orange — Special occasion day
       {% elif day_status == "red" %}
         Red — Day broken
       {% else %}
@@ -51,6 +53,9 @@
         <input id="special_occasion" name="special_occasion" type="checkbox" {% if special_occasion %}checked{% endif %}>
         <label for="special_occasion">Special occasion</label>
       </div>
+      {% if special_occasion_error %}
+        <p class="error">{{ special_occasion_error }}</p>
+      {% endif %}
     </div>
     <div class="row">
       <label for="note">Note (optional)</label>

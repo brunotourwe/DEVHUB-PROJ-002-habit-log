@@ -9,6 +9,7 @@ from flask import Flask, redirect, render_template, request, url_for
 from .auth import login_required, register_auth
 from .config import get_bind_host, get_bind_port
 from .db import (
+    count_orange_days,
     get_daily_log,
     get_db_path,
     get_weekly_weight,
@@ -27,10 +28,20 @@ def _compute_day_status(
     walked: bool,
     food_respected: bool,
     no_alcohol_after_21: bool,
+    special_occasion: bool,
 ) -> str:
     if walked and food_respected and no_alcohol_after_21:
         return "green"
+    if special_occasion:
+        return "orange"
     return "red"
+
+
+def _get_iso_week_bounds(day: dt_date) -> tuple[dt_date, dt_date]:
+    week = day.isocalendar()
+    start = dt_date.fromisocalendar(week.year, week.week, 1)
+    end = dt_date.fromisocalendar(week.year, week.week, 7)
+    return start, end
 
 
 def create_app() -> Flask:
@@ -60,43 +71,74 @@ def create_app() -> Flask:
 
         if request.method == "POST":
             error = None
+            special_occasion_error = None
             date_value = request.form.get("date", "")
+            selected_day = dt_date.today()
 
             try:
-                dt_date.fromisoformat(date_value)
+                selected_day = dt_date.fromisoformat(date_value)
             except ValueError:
                 error = "Invalid date."
                 date_value = today_value
+                selected_day = dt_date.fromisoformat(date_value)
 
             current = dt_date.today().isocalendar()
             week_year = current.year
             week_number = current.week
             weekly_entry = get_weekly_weight(week_year, week_number)
             edit_weight = request.form.get("edit_weight") == "1"
+            allow_weight_edit = weekly_entry is None or edit_weight
+
+            walked = request.form.get("walked") == "on"
+            no_alcohol_after_21 = request.form.get("no_alcohol_after_21") == "on"
+            food_respected = request.form.get("food_respected") == "on"
+            special_occasion = request.form.get("special_occasion") == "on"
+            note = request.form.get("note", "").strip() or None
+            weight_value = request.form.get("weight_kg", "").strip()
+            weight_kg = None
+
+            if error is None and weight_value and allow_weight_edit:
+                try:
+                    weight_kg = float(weight_value)
+                except ValueError:
+                    error = "Weight must be a number."
 
             if error is None:
-                allow_weight_edit = weekly_entry is None or edit_weight
-                weight_value = request.form.get("weight_kg", "").strip()
-
-                if weight_value and allow_weight_edit:
-                    try:
-                        weight_kg = float(weight_value)
-                    except ValueError:
-                        error = "Weight must be a number."
-                    else:
-                        upsert_weekly_weight(
-                            year=week_year,
-                            week=week_number,
-                            weight_kg=weight_kg,
+                day_status = _compute_day_status(
+                    walked=walked,
+                    food_respected=food_respected,
+                    no_alcohol_after_21=no_alcohol_after_21,
+                    special_occasion=special_occasion,
+                )
+                if day_status == "orange":
+                    week_start, week_end = _get_iso_week_bounds(selected_day)
+                    orange_week = count_orange_days(
+                        start_date=week_start.isoformat(),
+                        end_date=week_end.isoformat(),
+                        exclude_date=date_value,
+                    )
+                    window_start = selected_day - timedelta(days=29)
+                    orange_window = count_orange_days(
+                        start_date=window_start.isoformat(),
+                        end_date=selected_day.isoformat(),
+                        exclude_date=date_value,
+                    )
+                    if orange_week + 1 > 2:
+                        special_occasion_error = (
+                            "Only 2 orange days are allowed per ISO week."
+                        )
+                    elif orange_window + 1 > 5:
+                        special_occasion_error = (
+                            "Only 5 orange days are allowed in any 30-day window."
                         )
 
-            if error is None:
-                walked = request.form.get("walked") == "on"
-                no_alcohol_after_21 = request.form.get("no_alcohol_after_21") == "on"
-                food_respected = request.form.get("food_respected") == "on"
-                special_occasion = request.form.get("special_occasion") == "on"
-                note = request.form.get("note", "").strip() or None
-
+            if error is None and special_occasion_error is None:
+                if weight_kg is not None and allow_weight_edit:
+                    upsert_weekly_weight(
+                        year=week_year,
+                        week=week_number,
+                        weight_kg=weight_kg,
+                    )
                 upsert_daily_log(
                     date_value=date_value,
                     walked=walked,
@@ -111,9 +153,18 @@ def create_app() -> Flask:
                 params["edit_weight"] = "1"
             if error:
                 params["error"] = error
+            if special_occasion_error:
+                params["special_occasion_error"] = special_occasion_error
+            if error or special_occasion_error:
+                params["draft"] = "1"
+                params["walked"] = "1" if walked else "0"
+                params["no_alcohol_after_21"] = "1" if no_alcohol_after_21 else "0"
+                params["food_respected"] = "1" if food_respected else "0"
+                params["special_occasion"] = "1" if special_occasion else "0"
             return redirect(url_for("daily_log", **params))
 
         error = request.args.get("error")
+        special_occasion_error = request.args.get("special_occasion_error")
         date_value = request.args.get("date") or today_value
 
         try:
@@ -128,7 +179,14 @@ def create_app() -> Flask:
         weekly_entry = get_weekly_weight(week_year, week_number)
         entry = get_daily_log(date_value)
 
-        if entry is None:
+        use_draft = request.args.get("draft") == "1"
+        if use_draft:
+            walked = request.args.get("walked") == "1"
+            no_alcohol_after_21 = request.args.get("no_alcohol_after_21") == "1"
+            food_respected = request.args.get("food_respected") == "1"
+            special_occasion = request.args.get("special_occasion") == "1"
+            note = entry["note"] if entry and entry["note"] else ""
+        elif entry is None:
             walked = False
             no_alcohol_after_21 = False
             food_respected = False
@@ -145,6 +203,7 @@ def create_app() -> Flask:
             walked=walked,
             food_respected=food_respected,
             no_alcohol_after_21=no_alcohol_after_21,
+            special_occasion=special_occasion,
         )
 
         recent_days = []
@@ -156,10 +215,12 @@ def create_app() -> Flask:
                 day_walked = False
                 day_no_alcohol_after_21 = False
                 day_food_respected = False
+                day_special_occasion = False
             else:
                 day_walked = day_entry["walked"]
                 day_no_alcohol_after_21 = day_entry["no_alcohol_after_21"]
                 day_food_respected = day_entry["food_respected"]
+                day_special_occasion = day_entry["special_occasion"]
             recent_days.append(
                 {
                     "date": day_value,
@@ -167,6 +228,7 @@ def create_app() -> Flask:
                         walked=day_walked,
                         food_respected=day_food_respected,
                         no_alcohol_after_21=day_no_alcohol_after_21,
+                        special_occasion=day_special_occasion,
                     ),
                 }
             )
@@ -186,6 +248,7 @@ def create_app() -> Flask:
             note=note,
             day_status=day_status,
             recent_days=recent_days,
+            special_occasion_error=special_occasion_error,
             weekly_entry=weekly_entry,
             weekly_editable=weekly_editable,
             weekly_label=f"{week_year}-W{week_number:02d}",
