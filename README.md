@@ -13,6 +13,11 @@ The application stores its database in a Docker volume / mapped directory.
 Rebuilding or upgrading the container does not delete existing data.
 To reset data, explicitly remove the volume or mapped folder.
 
+## Creating Docker Container in Unraid
+CLI in Unraid terminal:
+
+   docker run -d --name Habit-Log-v0 --net bridge --pids-limit 2048   -e TZ=Europe/Paris   -e HOST_OS=Unraid   -e HOST_HOSTNAME=srv-master2   -e HOST_CONTAINERNAME=Habit-Log-v0   -e APP_ENV=production   -e DATA_DIR=/app/data   -e 'HABIT_LOG_PASSWORD_HASH=scrypt:32768:8:1$Ccccv4oOrn8ZVsMJ$de1260205f69a4f023194bdb75377e266aeec8083a602da9734b16a2a07f46eee575bdca548eac1a61d950f3fc63c717d3bcde09d6eb888937b297bc09927305'   -e 'HABIT_LOG_SECRET_KEY=FJYHB8P^pc@2nEIUtRilS5%%q0^6GzQv'   -p 10021:10021   -v /mnt/user/appdata/habit-log-v0:/app/data:rw   --user 99:100   ghcr.io/brunotourwe/devhub-proj-002-habit-log:latest
+
 ## Running in Unraid / Docker
 
 Image: `ghcr.io/brunotourwe/devhub-proj-002-habit-log:latest`
