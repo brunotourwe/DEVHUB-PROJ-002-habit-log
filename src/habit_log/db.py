@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import datetime as dt
+import grp
+import os
+import pwd
 import sqlite3
 from pathlib import Path
 
@@ -55,6 +58,46 @@ def _read_schema_version(conn: sqlite3.Connection) -> int | None:
 def init_db() -> None:
     db_path = Path(get_db_path())
     db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    print("=== DB DEBUG START ===")
+    print("DB PATH:", db_path)
+
+    db_dir = os.path.dirname(db_path)
+    print("DB DIR:", db_dir)
+    print("DIR EXISTS:", os.path.exists(db_dir))
+    print("DIR IS DIR:", os.path.isdir(db_dir))
+    print("DIR WRITABLE:", os.access(db_dir, os.W_OK))
+
+    try:
+        st = os.stat(db_dir)
+        print("DIR MODE:", oct(st.st_mode))
+        print(
+            "DIR UID:",
+            st.st_uid,
+            "(",
+            pwd.getpwuid(st.st_uid).pw_name
+            if st.st_uid in [u.pw_uid for u in pwd.getpwall()]
+            else "unknown",
+            ")",
+        )
+        print(
+            "DIR GID:",
+            st.st_gid,
+            "(",
+            grp.getgrgid(st.st_gid).gr_name
+            if st.st_gid in [g.gr_gid for g in grp.getgrall()]
+            else "unknown",
+            ")",
+        )
+    except Exception as e:
+        print("STAT ERROR:", e)
+
+    print("PROCESS UID:", os.getuid())
+    print("PROCESS GID:", os.getgid())
+    print("EUID:", os.geteuid())
+    print("EGID:", os.getegid())
+
+    print("=== DB DEBUG END ===")
 
     with sqlite3.connect(db_path) as conn:
         if not _schema_meta_exists(conn):

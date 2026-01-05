@@ -5,6 +5,18 @@ from pathlib import Path
 
 DEFAULT_DB_FILENAME = "habit-log.db"
 LOCAL_ENVS = {"local", "development", "dev"}
+_CONFIG_DEBUG_LOGGED = False
+
+
+def _log_config(app_env: str, data_dir: str | None, db_path: str) -> None:
+    global _CONFIG_DEBUG_LOGGED
+    if _CONFIG_DEBUG_LOGGED:
+        return
+    _CONFIG_DEBUG_LOGGED = True
+    print("CONFIG DEBUG:")
+    print("APP_ENV:", app_env)
+    print("DATA_DIR:", data_dir)
+    print("DB_PATH:", db_path)
 
 
 def _get_env(name: str) -> str | None:
@@ -33,10 +45,18 @@ def get_data_dir() -> Path:
 
 
 def get_db_path() -> str:
+    app_env = get_app_env()
     db_path = _get_env("HABIT_LOG_DB_PATH")
     if db_path:
+        data_dir = _get_env("DATA_DIR") or _get_env("HABIT_LOG_DATA_DIR")
+        if not data_dir and app_env.lower() in LOCAL_ENVS:
+            data_dir = str(Path.cwd() / ".data")
+        _log_config(app_env, data_dir, db_path)
         return db_path
-    return str(get_data_dir() / DEFAULT_DB_FILENAME)
+    data_dir_path = get_data_dir()
+    db_path = str(data_dir_path / DEFAULT_DB_FILENAME)
+    _log_config(app_env, str(data_dir_path), db_path)
+    return db_path
 
 
 def get_bind_host() -> str:
