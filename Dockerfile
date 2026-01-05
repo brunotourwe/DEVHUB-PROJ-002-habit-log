@@ -9,8 +9,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN groupadd --system app \
-    && useradd --system --gid app --home /home/app --create-home --shell /usr/sbin/nologin app
+ARG APP_UID=99
+ARG APP_GID=100
+
+RUN groupadd --system --gid "${APP_GID}" app \
+    && useradd --system --uid "${APP_UID}" --gid app \
+    --home /home/app --create-home --shell /usr/sbin/nologin app
 
 COPY requirements.txt /app/
 RUN python -m pip install --no-cache-dir --upgrade pip \
@@ -18,8 +22,7 @@ RUN python -m pip install --no-cache-dir --upgrade pip \
 
 COPY --chown=app:app src /app/src
 
-RUN mkdir -p /app/data \
-    && chown -R app:app /app/data
+RUN install -d -m 775 -o app -g app /app/data
 
 USER app
 
