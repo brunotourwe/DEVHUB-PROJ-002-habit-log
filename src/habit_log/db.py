@@ -190,6 +190,29 @@ def upsert_daily_log(
                     now,
                 ),
             )
+        else:
+            conn.execute(
+                """
+                UPDATE daily_log
+                SET
+                    walked = ?,
+                    no_alcohol_after_21 = ?,
+                    food_respected = ?,
+                    note = ?,
+                    special_occasion = ?,
+                    updated_at = ?
+                WHERE date = ?
+                """,
+                (
+                    int(walked),
+                    int(no_alcohol_after_21),
+                    int(food_respected),
+                    note,
+                    int(special_occasion),
+                    now,
+                    date_value,
+                ),
+            )
 
 
 def get_weekly_weight(year: int, week: int) -> dict[str, object] | None:

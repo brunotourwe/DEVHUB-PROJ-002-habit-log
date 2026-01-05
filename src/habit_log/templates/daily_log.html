@@ -8,33 +8,53 @@
   {% if error %}
     <p class="error">{{ error }}</p>
   {% endif %}
+  <div class="status">
+    <span class="status-dot status-{{ day_status }}"></span>
+    <span class="status-label">
+      {% if day_status == "green" %}
+        Green — Day respected
+      {% elif day_status == "red" %}
+        Red — Day broken
+      {% else %}
+        Status — {{ day_status }}
+      {% endif %}
+    </span>
+  </div>
+  <form method="get" class="row">
+    <label for="date">Date</label>
+    <input
+      id="date"
+      name="date"
+      type="date"
+      value="{{ date_value }}"
+      required
+      onchange="this.form.submit()"
+    >
+    <p class="meta">Date format: YYYY-MM-DD (ISO)</p>
+  </form>
   <form method="post">
-    <div class="row">
-      <label for="date">Date</label>
-      <input id="date" name="date" type="date" value="{{ date_value }}" required>
-      <p class="meta">Date format: YYYY-MM-DD (ISO)</p>
-    </div>
+    <input type="hidden" name="date" value="{{ date_value }}">
     <div class="row">
       <div class="check">
-        <input id="walked" name="walked" type="checkbox" {% if entry and entry.walked %}checked{% endif %}>
+        <input id="walked" name="walked" type="checkbox" {% if walked %}checked{% endif %}>
         <label for="walked">Walked sufficiently today</label>
       </div>
       <div class="check">
-        <input id="no_alcohol_after_21" name="no_alcohol_after_21" type="checkbox" {% if entry and entry.no_alcohol_after_21 %}checked{% endif %}>
+        <input id="no_alcohol_after_21" name="no_alcohol_after_21" type="checkbox" {% if no_alcohol_after_21 %}checked{% endif %}>
         <label for="no_alcohol_after_21">No alcohol after 21:00</label>
       </div>
       <div class="check">
-        <input id="food_respected" name="food_respected" type="checkbox" {% if entry and entry.food_respected %}checked{% endif %}>
+        <input id="food_respected" name="food_respected" type="checkbox" {% if food_respected %}checked{% endif %}>
         <label for="food_respected">Food intake respected</label>
       </div>
       <div class="check">
-        <input id="special_occasion" name="special_occasion" type="checkbox" {% if entry and entry.special_occasion %}checked{% endif %}>
+        <input id="special_occasion" name="special_occasion" type="checkbox" {% if special_occasion %}checked{% endif %}>
         <label for="special_occasion">Special occasion</label>
       </div>
     </div>
     <div class="row">
       <label for="note">Note (optional)</label>
-      <textarea id="note" name="note">{% if entry and entry.note %}{{ entry.note }}{% endif %}</textarea>
+      <textarea id="note" name="note">{{ note }}</textarea>
     </div>
     <div class="row">
       <label for="weight_kg">Weekly weight ({{ weekly_label }})</label>
@@ -61,4 +81,15 @@
   {% if entry %}
     <p class="meta">Created: {{ entry.created_at }} · Updated: {{ entry.updated_at }}</p>
   {% endif %}
+  <section class="overview">
+    <h2 class="overview-title">Last 7 days</h2>
+    <ul class="overview-list">
+      {% for day in recent_days %}
+        <li class="overview-item">
+          <span class="status-dot status-{{ day.status }}"></span>
+          <span class="overview-date">{{ day.date }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
 {% endblock %}
