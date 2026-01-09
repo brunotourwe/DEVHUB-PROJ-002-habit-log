@@ -18,6 +18,16 @@
         <form method="post" action="{{ url_for('login_submit') }}">
           <label for="password">Password</label>
           <input id="password" name="password" type="password" required autofocus>
+          <label>
+            <input
+              id="remember_device"
+              name="remember_device"
+              type="checkbox"
+              value="1"
+              {% if remember_device %}checked{% endif %}
+            >
+            Remember this device
+          </label>
           <input type="hidden" name="next" value="{{ next or '/' }}">
           <button type="submit">Log in</button>
         </form>

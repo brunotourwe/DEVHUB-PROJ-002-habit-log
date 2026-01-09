@@ -6,6 +6,7 @@ from pathlib import Path
 DEFAULT_DB_FILENAME = "habit-log.db"
 LOCAL_ENVS = {"local", "development", "dev"}
 _CONFIG_DEBUG_LOGGED = False
+DEFAULT_SESSION_DAYS = 30
 
 
 def _log_config(app_env: str, data_dir: str | None, db_path: str) -> None:
@@ -25,6 +26,13 @@ def _get_env(name: str) -> str | None:
         return None
     value = value.strip()
     return value or None
+
+
+def _get_env_bool(name: str) -> bool | None:
+    value = _get_env(name)
+    if value is None:
+        return None
+    return value.lower() in {"1", "true", "yes", "on"}
 
 
 def get_app_env() -> str:
@@ -79,3 +87,17 @@ def get_secret_key() -> str:
     if not secret_key:
         raise RuntimeError("HABIT_LOG_SECRET_KEY is required for sessions.")
     return secret_key
+
+
+def get_session_days() -> int:
+    session_days = _get_env("HABIT_LOG_SESSION_DAYS")
+    if session_days is None:
+        return DEFAULT_SESSION_DAYS
+    return int(session_days)
+
+
+def get_session_cookie_secure() -> bool:
+    secure = _get_env_bool("HABIT_LOG_SESSION_COOKIE_SECURE")
+    if secure is None:
+        return False
+    return secure
