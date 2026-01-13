@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import re
 import sqlite3
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import date as dt_date, timedelta
 from pathlib import Path
+from urllib.parse import unquote
 
+from babel.core import Locale, UnknownLocaleError
+from babel.numbers import NumberFormatError, format_decimal, get_decimal_symbol
 from flask import Flask, redirect, render_template, request, url_for
 
 from .auth import login_required, register_auth
@@ -21,6 +26,95 @@ from .db import (
 
 def _get_bind() -> tuple[str, int]:
     return get_bind_host(), get_bind_port()
+
+
+DEFAULT_LOCALE = "en_US"
+WEIGHT_MIN = Decimal("3")
+WEIGHT_MAX = Decimal("500")
+WEIGHT_QUANT = Decimal("0.1")
+WEIGHT_PATTERN = re.compile(r"^\d+(?:[.,]\d+)?$")
+
+
+def _normalize_locale(raw_locale: str | None) -> str:
+    if not raw_locale:
+        return DEFAULT_LOCALE
+    value = raw_locale.replace("-", "_")
+    try:
+        Locale.parse(value)
+    except (ValueError, UnknownLocaleError):
+        base = value.split("_", 1)[0]
+        try:
+            Locale.parse(base)
+        except (ValueError, UnknownLocaleError):
+            return DEFAULT_LOCALE
+        return base
+    return value
+
+
+def _decode_cookie(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return unquote(value)
+
+
+def _get_request_locale() -> str:
+    raw_locale = (
+        request.form.get("locale")
+        or _decode_cookie(request.cookies.get("habit_log_locale"))
+        or request.accept_languages.best
+    )
+    return _normalize_locale(raw_locale)
+
+
+def _get_request_decimal_symbol(locale: str) -> str:
+    symbol = (
+        request.form.get("decimal_symbol")
+        or _decode_cookie(request.cookies.get("habit_log_decimal"))
+        or ""
+    ).strip()
+    if symbol in {".", ","}:
+        return symbol
+    return get_decimal_symbol(locale)
+
+
+def _parse_weight(value: str, decimal_symbol: str) -> Decimal:
+    cleaned = value.strip()
+    if not cleaned:
+        raise NumberFormatError("Empty weight.")
+    if not WEIGHT_PATTERN.match(cleaned):
+        raise NumberFormatError("Invalid weight format.")
+
+    separator = None
+    if "," in cleaned:
+        separator = ","
+    elif "." in cleaned:
+        separator = "."
+    if separator and decimal_symbol in {".", ","} and separator != decimal_symbol:
+        normalized = cleaned.replace(separator, ".")
+    else:
+        normalized = cleaned.replace(",", ".")
+
+    try:
+        return Decimal(normalized)
+    except InvalidOperation as exc:
+        raise NumberFormatError(str(exc)) from exc
+
+
+def _normalize_weight(value: Decimal) -> Decimal:
+    return value.quantize(WEIGHT_QUANT, rounding=ROUND_HALF_UP)
+
+
+def _format_weight(value: float | None, locale: str, decimal_symbol: str) -> str:
+    if value is None:
+        return ""
+    try:
+        formatted = format_decimal(value, format="0.0", locale=locale)
+    except (ValueError, UnknownLocaleError):
+        return str(value)
+    locale_symbol = get_decimal_symbol(locale)
+    if decimal_symbol and decimal_symbol != locale_symbol:
+        return formatted.replace(locale_symbol, decimal_symbol)
+    return formatted
 
 
 def _compute_day_status(
@@ -68,6 +162,8 @@ def create_app() -> Flask:
     @login_required
     def daily_log():
         today_value = dt_date.today().isoformat()
+        locale = _get_request_locale()
+        decimal_symbol = _get_request_decimal_symbol(locale)
 
         if request.method == "POST":
             error = None
@@ -82,7 +178,7 @@ def create_app() -> Flask:
                 date_value = today_value
                 selected_day = dt_date.fromisoformat(date_value)
 
-            current = dt_date.today().isocalendar()
+            current = selected_day.isocalendar()
             week_year = current.year
             week_number = current.week
             weekly_entry = get_weekly_weight(week_year, week_number)
@@ -99,9 +195,13 @@ def create_app() -> Flask:
 
             if error is None and weight_value and allow_weight_edit:
                 try:
-                    weight_kg = float(weight_value)
-                except ValueError:
-                    error = "Weight must be a number."
+                    parsed_weight = _parse_weight(weight_value, decimal_symbol)
+                    rounded_weight = _normalize_weight(parsed_weight)
+                    if rounded_weight < WEIGHT_MIN or rounded_weight > WEIGHT_MAX:
+                        raise ValueError("Weight out of range.")
+                    weight_kg = float(rounded_weight)
+                except (NumberFormatError, ValueError):
+                    error = "Weight must be a number between 3.0 and 500.0 kg."
 
             if error is None:
                 day_status = _compute_day_status(
@@ -168,16 +268,22 @@ def create_app() -> Flask:
         date_value = request.args.get("date") or today_value
 
         try:
-            dt_date.fromisoformat(date_value)
+            selected_day = dt_date.fromisoformat(date_value)
         except ValueError:
             error = "Invalid date."
             date_value = today_value
+            selected_day = dt_date.fromisoformat(date_value)
 
-        current = dt_date.today().isocalendar()
+        current = selected_day.isocalendar()
         week_year = current.year
         week_number = current.week
         weekly_entry = get_weekly_weight(week_year, week_number)
         entry = get_daily_log(date_value)
+        weekly_weight_display = _format_weight(
+            weekly_entry["weight_kg"] if weekly_entry else None,
+            locale,
+            decimal_symbol,
+        )
 
         use_draft = request.args.get("draft") == "1"
         if use_draft:
@@ -207,8 +313,8 @@ def create_app() -> Flask:
         )
 
         recent_days = []
-        for offset in range(7):
-            day = dt_date.today() - timedelta(days=offset)
+        for offset in range(1, 8):
+            day = selected_day - timedelta(days=offset)
             day_value = day.isoformat()
             day_entry = get_daily_log(day_value)
             if day_entry is None:
@@ -251,6 +357,7 @@ def create_app() -> Flask:
             special_occasion_error=special_occasion_error,
             weekly_entry=weekly_entry,
             weekly_editable=weekly_editable,
+            weekly_weight_display=weekly_weight_display,
             weekly_label=f"{week_year}-W{week_number:02d}",
         )
 
@@ -264,6 +371,8 @@ def create_app() -> Flask:
         current = dt_date.today().isocalendar()
         current_year = current.year
         current_week = current.week
+        locale = _get_request_locale()
+        decimal_symbol = _get_request_decimal_symbol(locale)
 
         if request.method == "POST":
             weight_value = request.form.get("weight_kg", "").strip()
@@ -271,9 +380,13 @@ def create_app() -> Flask:
                 error = "Weight is required."
             else:
                 try:
-                    weight_kg = float(weight_value)
-                except ValueError:
-                    error = "Weight must be a number."
+                    parsed_weight = _parse_weight(weight_value, decimal_symbol)
+                    rounded_weight = _normalize_weight(parsed_weight)
+                    if rounded_weight < WEIGHT_MIN or rounded_weight > WEIGHT_MAX:
+                        raise ValueError("Weight out of range.")
+                    weight_kg = float(rounded_weight)
+                except (NumberFormatError, ValueError):
+                    error = "Weight must be a number between 3.0 and 500.0 kg."
                 else:
                     upsert_weekly_weight(
                         year=current_year,
@@ -283,6 +396,11 @@ def create_app() -> Flask:
                     return redirect(url_for("weekly_weight"))
 
         entry = get_weekly_weight(current_year, current_week)
+        weight_display = _format_weight(
+            entry["weight_kg"] if entry else None,
+            locale,
+            decimal_symbol,
+        )
 
         return render_template(
             "weekly_weight.html",
@@ -290,6 +408,7 @@ def create_app() -> Flask:
             error=error,
             year=current_year,
             week=current_week,
+            weight_display=weight_display,
         )
 
     return app

@@ -153,5 +153,39 @@
       </header>
       {% block body %}{% endblock %}
     </main>
+    <script>
+      (function () {
+        var locale = "";
+        if (window.Intl && Intl.NumberFormat) {
+          locale = Intl.NumberFormat().resolvedOptions().locale || "";
+        }
+        if (!locale) {
+          locale = navigator.language || (navigator.languages && navigator.languages[0]) || "";
+        }
+        if (!locale) {
+          return;
+        }
+        var decimalSymbol = ".";
+        if (window.Intl && Intl.NumberFormat) {
+          var parts = Intl.NumberFormat(locale).formatToParts(1.1);
+          for (var i = 0; i < parts.length; i += 1) {
+            if (parts[i].type === "decimal") {
+              decimalSymbol = parts[i].value;
+              break;
+            }
+          }
+        }
+        document.cookie = "habit_log_locale=" + encodeURIComponent(locale) + "; path=/; SameSite=Lax";
+        document.cookie = "habit_log_decimal=" + encodeURIComponent(decimalSymbol) + "; path=/; SameSite=Lax";
+        var localeField = document.getElementById("locale");
+        if (localeField) {
+          localeField.value = locale;
+        }
+        var decimalField = document.getElementById("decimal_symbol");
+        if (decimalField) {
+          decimalField.value = decimalSymbol;
+        }
+      })();
+    </script>
   </body>
 </html>

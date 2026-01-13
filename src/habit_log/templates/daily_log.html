@@ -35,6 +35,8 @@
     <p class="meta">Date format: YYYY-MM-DD (ISO)</p>
   </form>
   <form method="post">
+    <input type="hidden" id="locale" name="locale" value="">
+    <input type="hidden" id="decimal_symbol" name="decimal_symbol" value="">
     <input type="hidden" name="date" value="{{ date_value }}">
     <div class="row">
       <div class="check">
@@ -68,7 +70,7 @@
         name="weight_kg"
         type="text"
         inputmode="decimal"
-        value="{% if weekly_entry %}{{ weekly_entry.weight_kg }}{% endif %}"
+        value="{{ weekly_weight_display }}"
         {% if not weekly_editable %}disabled{% endif %}
       >
       {% if weekly_entry and not weekly_editable %}
