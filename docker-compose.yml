@@ -1,0 +1,19 @@
+services:
+  habit-log:
+    build:
+      context: .
+    image: ghcr.io/brunotourwe/devhub-proj-002-habit-log:local
+    container_name: habit-log-local
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      DATA_DIR: /app/data
+      HABIT_LOG_HOST: 0.0.0.0
+      HABIT_LOG_PORT: 10021
+      HABIT_LOG_DB_PATH: /app/data/habit-log.db
+      HABIT_LOG_PASSWORD_HASH: ${HABIT_LOG_PASSWORD_HASH:-}
+      HABIT_LOG_SECRET_KEY: ${HABIT_LOG_SECRET_KEY:-}
+    volumes:
+      - ./.data:/app/data
+    ports:
+      - "${HABIT_LOG_PORT:-10021}:10021"

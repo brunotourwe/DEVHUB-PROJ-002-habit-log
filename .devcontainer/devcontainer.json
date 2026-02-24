@@ -12,7 +12,7 @@
     "--env-file",
     ".env"
   ],
-  "postStartCommand": "./scripts/dev",
+  "postStartCommand": "./scripts/dev --background",
   "containerEnv": {
     "HABIT_LOG_HOST": "0.0.0.0",
     "HABIT_LOG_PORT": "10021",

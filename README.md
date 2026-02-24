@@ -1,78 +1,72 @@
-# DEVHUB-PROJ-002 — Habit Log
+# Habit Log
 
-This repository contains the governance baseline for the Habit Log project.
+Habit Log is a small Flask app for daily behavior tracking and weekly weight capture.
 
-⚠️ Architecture and scope are frozen at v0.
-Any changes require an explicit ADR.
+Project goals:
+- easy local testing from this folder,
+- GitHub as backup/source of truth,
+- deployable as a container on Unraid.
 
-See /docs for authoritative documentation.
+## Local Run (Python)
 
-Data persistence
+```bash
+./scripts/setup-local
+source .venv/bin/activate
+./scripts/dev
+```
 
-The application stores its database in a Docker volume / mapped directory.
-Rebuilding or upgrading the container does not delete existing data.
-To reset data, explicitly remove the volume or mapped folder.
+App URL: `http://127.0.0.1:10021`
 
-## Creating Docker Container in Unraid
-CLI in Unraid terminal:
+In local mode (`APP_ENV=local`), if `HABIT_LOG_PASSWORD_HASH` is not set, the default login password is `test123`.
 
-   docker run -d --name Habit-Log-v0 --net bridge --pids-limit 2048   -e TZ=Europe/Paris   -e HOST_OS=Unraid   -e HOST_HOSTNAME=srv-master2   -e HOST_CONTAINERNAME=Habit-Log-v0   -e APP_ENV=production   -e DATA_DIR=/app/data   -e 'HABIT_LOG_PASSWORD_HASH=scrypt:32768:8:1$Ccccv4oOrn8ZVsMJ$de1260205f69a4f023194bdb75377e266aeec8083a602da9734b16a2a07f46eee575bdca548eac1a61d950f3fc63c717d3bcde09d6eb888937b297bc09927305'   -e 'HABIT_LOG_SECRET_KEY=FJYHB8P^pc@2nEIUtRilS5%%q0^6GzQv'   -p 10021:10021   -v /mnt/user/appdata/habit-log-v0:/app/data:rw   --user 99:100   ghcr.io/brunotourwe/devhub-proj-002-habit-log:latest
+## Local Run (Docker Compose)
 
-## Running in Unraid / Docker
+```bash
+docker compose up --build
+```
 
-Image: `ghcr.io/brunotourwe/devhub-proj-002-habit-log:latest`
+App URL: `http://127.0.0.1:10021`
 
-Required environment variables:
-- `HABIT_LOG_PASSWORD_HASH`
-- `HABIT_LOG_SECRET_KEY`
+Persistent data is stored in `./.data`.
 
-Optional environment variables (defaults shown):
+## GitHub Sync Workflow
+
+```bash
+git pull --rebase origin main
+git add -A
+git commit -m "your message"
+git push origin main
+```
+
+## Deploy On Unraid
+
+Image:
+`ghcr.io/brunotourwe/devhub-proj-002-habit-log:latest`
+
+Use production configuration:
 - `APP_ENV=production`
-- `DATA_DIR=/app/data`
-- `HABIT_LOG_HOST=0.0.0.0`
-- `HABIT_LOG_PORT=10021`
-- `HABIT_LOG_DB_PATH=/app/data/habit-log.db`
-
-Expose port `10021` and mount `/app/data` for persistence.
+- `HABIT_LOG_PASSWORD_HASH` (required)
+- `HABIT_LOG_SECRET_KEY` (required)
+- map a persistent host folder to `/app/data`
+- expose port `10021`
 
 Example:
 ```bash
 docker run -d --name habit-log \
+  --restart unless-stopped \
   -p 10021:10021 \
-  -e HABIT_LOG_PASSWORD_HASH=... \
-  -e HABIT_LOG_SECRET_KEY=... \
-  -v /path/on/host:/app/data \
+  -e APP_ENV=production \
+  -e HABIT_LOG_PASSWORD_HASH='...' \
+  -e HABIT_LOG_SECRET_KEY='...' \
+  -v /mnt/user/appdata/habit-log:/app/data:rw \
   ghcr.io/brunotourwe/devhub-proj-002-habit-log:latest
 ```
 
-## Runtime configuration (local development)
-
-This application fails fast if required environment variables are missing.
-This is intentional.
-
-### Required variables
-- `HABIT_LOG_PASSWORD_HASH`
-- `HABIT_LOG_SECRET_KEY`
-
-### Local development setup
-
-1. Copy the example file:
-   ```bash
-   cp .env.example .env
-   ```
-
-Set a password hash value in .env.
-
-Provide the environment variable before starting the app:
+## Generate Password Hash
 
 ```bash
-export HABIT_LOG_PASSWORD_HASH=...
-export HABIT_LOG_SECRET_KEY=...
-python -m src.habit_log
+.venv/bin/python - <<'PY'
+from werkzeug.security import generate_password_hash
+print(generate_password_hash("your-password"))
+PY
 ```
-
-The application will not start if required variables are missing.
-
-Runtime configuration
-This project uses Docker --env-file.
-Any change to .env requires Dev Containers: Rebuild and Reopen.

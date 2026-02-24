@@ -1,10 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PORT="${HABIT_LOG_PORT:-10021}"
-APP_ENV="${APP_ENV:-local}"
-DATA_DIR="${DATA_DIR:-${HABIT_LOG_DATA_DIR:-${PWD}/.data}}"
-PASSWORD_FILE="${DATA_DIR}/password.hash"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${ROOT_DIR}"
+
+MODE="foreground"
+for arg in "$@"; do
+  case "${arg}" in
+    --background)
+      MODE="background"
+      ;;
+    --foreground)
+      MODE="foreground"
+      ;;
+    -h|--help)
+      cat <<'EOF'
+Usage: ./scripts/dev [--foreground|--background]
+
+Starts Habit Log with local-friendly defaults.
+EOF
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: ${arg}" >&2
+      exit 1
+      ;;
+  esac
+done
 
 PYTHON_BIN=""
 if [[ -n "${VIRTUAL_ENV:-}" && -x "${VIRTUAL_ENV}/bin/python" ]]; then
@@ -18,11 +40,56 @@ else
   exit 1
 fi
 
-export APP_ENV
-export DATA_DIR
+if [[ -f .env ]]; then
+  while IFS= read -r raw_line || [[ -n "${raw_line}" ]]; do
+    line="${raw_line%$'\r'}"
+    [[ -z "${line}" || "${line}" =~ ^[[:space:]]*# ]] && continue
+    [[ "${line}" != *=* ]] && continue
+
+    key="${line%%=*}"
+    value="${line#*=}"
+    key="${key#"${key%%[![:space:]]*}"}"
+    key="${key%"${key##*[![:space:]]}"}"
+
+    if [[ ! "${key}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+      continue
+    fi
+
+    if [[ "${value}" =~ ^\".*\"$ || "${value}" =~ ^\'.*\'$ ]]; then
+      value="${value:1:-1}"
+    fi
+
+    export "${key}=${value}"
+  done < .env
+fi
+
+PORT="${HABIT_LOG_PORT:-10021}"
+APP_ENV="${APP_ENV:-local}"
+DATA_DIR="${DATA_DIR:-${HABIT_LOG_DATA_DIR:-${ROOT_DIR}/.data}}"
+
+export APP_ENV DATA_DIR
 export HABIT_LOG_DB_PATH="${HABIT_LOG_DB_PATH:-${DATA_DIR}/habit-log.db}"
-export HABIT_LOG_SECRET_KEY="${HABIT_LOG_SECRET_KEY:-dev-secret-key-change-me}"
-export PYTHONPATH="${PYTHONPATH:-${PWD}/src}"
+export PYTHONPATH="${PYTHONPATH:-${ROOT_DIR}/src}"
+
+if [[ -z "${HABIT_LOG_SECRET_KEY:-}" ]]; then
+  if [[ "${APP_ENV,,}" == "local" || "${APP_ENV,,}" == "dev" || "${APP_ENV,,}" == "development" ]]; then
+    export HABIT_LOG_SECRET_KEY="dev-secret-key-change-me"
+  else
+    echo "HABIT_LOG_SECRET_KEY is required when APP_ENV=${APP_ENV}" >&2
+    exit 1
+  fi
+else
+  export HABIT_LOG_SECRET_KEY
+fi
+
+if ! "${PYTHON_BIN}" - <<'PY' >/dev/null 2>&1; then
+import babel
+import flask
+import werkzeug
+PY
+  echo "Missing Python dependencies. Run: python -m pip install -r requirements.txt" >&2
+  exit 1
+fi
 
 if "${PYTHON_BIN}" - "$PORT" <<'PY'; then
 import socket
@@ -38,25 +105,29 @@ with socket.socket() as sock:
     else:
         sys.exit(0)
 PY
-  exit 0
+  if [[ "${MODE}" == "background" ]]; then
+    echo "Habit Log already running on http://127.0.0.1:${PORT}"
+    exit 0
+  fi
+  echo "Port ${PORT} is already in use." >&2
+  exit 1
 fi
 
 mkdir -p "${DATA_DIR}"
 
 if [[ -z "${HABIT_LOG_PASSWORD_HASH:-}" ]]; then
-  if [[ -f "${PASSWORD_FILE}" ]]; then
-    export HABIT_LOG_PASSWORD_HASH="$(cat "${PASSWORD_FILE}")"
+  if [[ "${APP_ENV,,}" == "local" || "${APP_ENV,,}" == "dev" || "${APP_ENV,,}" == "development" ]]; then
+    echo "No HABIT_LOG_PASSWORD_HASH set; local mode default password is: test123"
   else
-    HABIT_LOG_PASSWORD_HASH="$(
-      "${PYTHON_BIN}" - <<'PY'
-from werkzeug.security import generate_password_hash
-
-print(generate_password_hash("test123"))
-PY
-    )"
-    printf '%s' "${HABIT_LOG_PASSWORD_HASH}" > "${PASSWORD_FILE}"
-    export HABIT_LOG_PASSWORD_HASH
+    echo "HABIT_LOG_PASSWORD_HASH is required when APP_ENV=${APP_ENV}" >&2
+    exit 1
   fi
 fi
 
-nohup "${PYTHON_BIN}" -m habit_log >/tmp/habit_log.log 2>&1 &
+if [[ "${MODE}" == "background" ]]; then
+  nohup "${PYTHON_BIN}" -m habit_log >/tmp/habit_log.log 2>&1 &
+  echo "Habit Log running in background on http://127.0.0.1:${PORT} (log: /tmp/habit_log.log)"
+  exit 0
+fi
+
+exec "${PYTHON_BIN}" -m habit_log

@@ -3,21 +3,13 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from werkzeug.security import generate_password_hash
+
 DEFAULT_DB_FILENAME = "habit-log.db"
 LOCAL_ENVS = {"local", "development", "dev"}
-_CONFIG_DEBUG_LOGGED = False
 DEFAULT_SESSION_DAYS = 30
-
-
-def _log_config(app_env: str, data_dir: str | None, db_path: str) -> None:
-    global _CONFIG_DEBUG_LOGGED
-    if _CONFIG_DEBUG_LOGGED:
-        return
-    _CONFIG_DEBUG_LOGGED = True
-    print("CONFIG DEBUG:")
-    print("APP_ENV:", app_env)
-    print("DATA_DIR:", data_dir)
-    print("DB_PATH:", db_path)
+DEFAULT_LOCAL_PASSWORD = "test123"
+DEFAULT_LOCAL_SECRET_KEY = "dev-secret-key-change-me"
 
 
 def _get_env(name: str) -> str | None:
@@ -53,18 +45,11 @@ def get_data_dir() -> Path:
 
 
 def get_db_path() -> str:
-    app_env = get_app_env()
     db_path = _get_env("HABIT_LOG_DB_PATH")
     if db_path:
-        data_dir = _get_env("DATA_DIR") or _get_env("HABIT_LOG_DATA_DIR")
-        if not data_dir and app_env.lower() in LOCAL_ENVS:
-            data_dir = str(Path.cwd() / ".data")
-        _log_config(app_env, data_dir, db_path)
         return db_path
     data_dir_path = get_data_dir()
-    db_path = str(data_dir_path / DEFAULT_DB_FILENAME)
-    _log_config(app_env, str(data_dir_path), db_path)
-    return db_path
+    return str(data_dir_path / DEFAULT_DB_FILENAME)
 
 
 def get_bind_host() -> str:
@@ -77,16 +62,20 @@ def get_bind_port() -> int:
 
 def get_password_hash() -> str:
     password_hash = _get_env("HABIT_LOG_PASSWORD_HASH")
-    if not password_hash:
-        raise RuntimeError("HABIT_LOG_PASSWORD_HASH is required for authentication.")
-    return password_hash
+    if password_hash:
+        return password_hash
+    if is_local_env():
+        return generate_password_hash(DEFAULT_LOCAL_PASSWORD)
+    raise RuntimeError("HABIT_LOG_PASSWORD_HASH is required for authentication.")
 
 
 def get_secret_key() -> str:
     secret_key = _get_env("HABIT_LOG_SECRET_KEY")
-    if not secret_key:
-        raise RuntimeError("HABIT_LOG_SECRET_KEY is required for sessions.")
-    return secret_key
+    if secret_key:
+        return secret_key
+    if is_local_env():
+        return DEFAULT_LOCAL_SECRET_KEY
+    raise RuntimeError("HABIT_LOG_SECRET_KEY is required for sessions.")
 
 
 def get_session_days() -> int:

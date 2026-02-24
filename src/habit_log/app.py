@@ -361,55 +361,36 @@ def create_app() -> Flask:
             weekly_label=f"{week_year}-W{week_number:02d}",
         )
 
-# Legacy / fallback route.
-# Primary UX for weekly weight is integrated into the daily log ("/").
-
     @app.route("/weight", methods=["GET", "POST"])
     @login_required
     def weekly_weight():
-        error = None
-        current = dt_date.today().isocalendar()
-        current_year = current.year
-        current_week = current.week
-        locale = _get_request_locale()
-        decimal_symbol = _get_request_decimal_symbol(locale)
-
+        # Legacy route: weekly weight editing now lives in "/".
+        # Keep this endpoint working by forwarding to the current flow.
         if request.method == "POST":
+            current = dt_date.today().isocalendar()
+            locale = _get_request_locale()
+            decimal_symbol = _get_request_decimal_symbol(locale)
             weight_value = request.form.get("weight_kg", "").strip()
-            if not weight_value:
-                error = "Weight is required."
-            else:
+            if weight_value:
                 try:
                     parsed_weight = _parse_weight(weight_value, decimal_symbol)
                     rounded_weight = _normalize_weight(parsed_weight)
                     if rounded_weight < WEIGHT_MIN or rounded_weight > WEIGHT_MAX:
                         raise ValueError("Weight out of range.")
-                    weight_kg = float(rounded_weight)
                 except (NumberFormatError, ValueError):
-                    error = "Weight must be a number between 3.0 and 500.0 kg."
-                else:
-                    upsert_weekly_weight(
-                        year=current_year,
-                        week=current_week,
-                        weight_kg=weight_kg,
+                    return redirect(
+                        url_for(
+                            "daily_log",
+                            edit_weight="1",
+                            error="Weight must be a number between 3.0 and 500.0 kg.",
+                        )
                     )
-                    return redirect(url_for("weekly_weight"))
-
-        entry = get_weekly_weight(current_year, current_week)
-        weight_display = _format_weight(
-            entry["weight_kg"] if entry else None,
-            locale,
-            decimal_symbol,
-        )
-
-        return render_template(
-            "weekly_weight.html",
-            entry=entry,
-            error=error,
-            year=current_year,
-            week=current_week,
-            weight_display=weight_display,
-        )
+                upsert_weekly_weight(
+                    year=current.year,
+                    week=current.week,
+                    weight_kg=float(rounded_weight),
+                )
+        return redirect(url_for("daily_log", edit_weight="1"))
 
     return app
 
